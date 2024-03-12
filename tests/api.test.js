@@ -120,6 +120,21 @@ describe("Test /api/", () => {
     );
   });
 
+  it("should render error card in same theme as requested card", async () => {
+    const { req, res } = faker({ theme: "merko" }, error);
+
+    await api(req, res);
+
+    expect(res.setHeader).toBeCalledWith("Content-Type", "image/svg+xml");
+    expect(res.send).toBeCalledWith(
+      renderError(
+        error.errors[0].message,
+        "Make sure the provided username is not an organization",
+        { theme: "merko" },
+      ),
+    );
+  });
+
   it("should get the query options", async () => {
     const { req, res } = faker(
       {
@@ -291,7 +306,9 @@ describe("Test /api/", () => {
     await api(req, res);
 
     expect(res.setHeader).toBeCalledWith("Content-Type", "image/svg+xml");
-    expect(res.send).toBeCalledWith(renderError("Something went wrong"));
+    expect(res.send).toBeCalledWith(
+      renderError("Something went wrong", "This username is blacklisted"),
+    );
   });
 
   it("should render error card when wrong locale is provided", async () => {
@@ -302,6 +319,28 @@ describe("Test /api/", () => {
     expect(res.setHeader).toBeCalledWith("Content-Type", "image/svg+xml");
     expect(res.send).toBeCalledWith(
       renderError("Something went wrong", "Language not found"),
+    );
+  });
+
+  it("should render error card when include_all_commits true and upstream API fails", async () => {
+    mock
+      .onGet("https://api.github.com/search/commits?q=author:anuraghazra")
+      .reply(200, { error: "Some test error message" });
+
+    const { req, res } = faker(
+      { username: "anuraghazra", include_all_commits: true },
+      data_stats,
+    );
+
+    await api(req, res);
+
+    expect(res.setHeader).toBeCalledWith("Content-Type", "image/svg+xml");
+    expect(res.send).toBeCalledWith(
+      renderError("Could not fetch total commits.", "Please try again later"),
+    );
+    // Received SVG output should not contain string "https://tiny.one/readme-stats"
+    expect(res.send.mock.calls[0][0]).not.toContain(
+      "https://tiny.one/readme-stats",
     );
   });
 });
